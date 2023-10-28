@@ -2,7 +2,7 @@
   <v-layout>
     <v-app-bar style="background-color: #765D39; 
     color:azure; text-decoration: dotted; font-size: 30px;" img>
-    <v-img src="../images/LogoE.png"></v-img>
+    <v-img src="~/public/images/LogoE.png"></v-img>
     </v-app-bar>
     <v-navigation-drawer expand-on-hover rail>
       <v-list density="compact" nav>

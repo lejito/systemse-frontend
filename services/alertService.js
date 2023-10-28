@@ -29,8 +29,8 @@ export const alertService = {
     Swal.fire(text);
   },
 
-  informative: (title, text) => {
-    Swal.fire(title, text, "info");
+  informative: (title, html) => {
+    Swal.fire(title, html, "info");
   },
 
   question: (title, text) => {

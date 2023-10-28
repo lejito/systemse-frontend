@@ -67,11 +67,10 @@
 
 
 <script setup>
-import { intervalsService } from '../services/intervalsService';
+import { mediaService } from '../services/mediaService';
 import { utilsService } from '../services/utilsService';
 import { alertService } from '../services/alertService';
 
-const errorMessage = ref("");
 const Rules = [(v) => !!v || "El campo es obligatorio"];
 const numeroRules = [
   (v) => utilsService.isNumber(v) || "Solo se permiten números",
@@ -111,16 +110,46 @@ const camposCompletos = computed(() => {
 
 const calcular = async () => {
   if (camposCompletos.value) {
-    if (condicion.value == 1) {
-      const { L, U } = intervalsService.media.poblacionNormalVarianzaConocida(
-        media.value,
-        1 - confianza.value,
-        desviacionPoblacional.value,
-        muestra.value
-      );
+    let interval = null;
+    switch (condicion.value) {
+      case 1:
+        interval = await mediaService.poblacionNormalVarianzaConocida(
+          parseFloat(media.value),
+          parseFloat((1 - confianza.value).toFixed(2)),
+          parseFloat(desviacionPoblacional.value),
+          parseFloat(muestra.value)
+        );
+        break;
+      case 2:
+        interval = await mediaService.poblacionNormalVarianzaDesconocida(
+          parseFloat(media.value),
+          parseFloat((1 - confianza.value).toFixed(2)),
+          parseFloat(desviacionMuestral.value),
+          parseFloat(muestra.value)
+        );
+        break;
+      case 3:
+        interval = await mediaService.poblacionCualquieraVarianzaDesconocida(
+          parseFloat(media.value),
+          parseFloat((1 - confianza.value).toFixed(2)),
+          parseFloat(desviacionMuestral.value),
+          parseFloat(muestra.value)
+        );
+        break;
+      case 4:
+        interval = await mediaService.poblacionCualquieraVarianzaConocida(
+          parseFloat(media.value),
+          parseFloat((1 - confianza.value).toFixed(2)),
+          parseFloat(desviacionPoblacional.value),
+          parseFloat(muestra.value)
+        );
+        break;
+    }
+
+    if (interval) {
       alertService.informative(
         "Resultado",
-        `Con una confianza del ${confianza.value * 100}%, se espera que la media poblacional esté entre ${L} y ${U}.`
+        `Con una confianza del ${confianza.value * 100}%, se espera que la media poblacional esté entre: <br/><br/><b>${interval.L}</b> <br/><br/>y <br/><br/><b>${interval.U}</b>`
       );
     }
   } else {
