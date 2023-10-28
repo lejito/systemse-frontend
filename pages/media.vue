@@ -1,4 +1,6 @@
 <template>
+  <Loader v-if="loading"></Loader>
+
   <v-container class="container-p">
     <br />
     <v-card class="mx-auto pa-4 pb-2" elevation="20" max-width="448" rounded="lg">
@@ -21,7 +23,7 @@
           Media muestral
         </div>
         <v-text-field type="number" min="0" v-model="media" density="compact" placeholder="Valor de la media muestral"
-          prepend-inner-icon="mdi-sigma" variant="underlined" :rules="[Rules, numeroRules].flat()"></v-text-field>
+          prepend-inner-icon="mdi-sigma" variant="underlined" :rules="[rules, numeroRules].flat()"></v-text-field>
       </div>
 
       <v-expand-transition>
@@ -31,7 +33,7 @@
           </div>
           <v-text-field type="number" min="0" v-model="desviacionMuestral" density="compact"
             placeholder="Valor de la desviación muestral" prepend-inner-icon="mdi-chart-scatter-plot" variant="underlined"
-            :rules="[Rules, numeroRules].flat()"></v-text-field>
+            :rules="[rules, numeroRules].flat()"></v-text-field>
         </div>
       </v-expand-transition>
 
@@ -42,15 +44,15 @@
           </div>
           <v-text-field type="number" min="0" v-model="desviacionPoblacional" density="compact"
             placeholder="Valor de la desviación poblacional" prepend-inner-icon="mdi-chart-scatter-plot"
-            variant="underlined" :rules="[Rules, numeroRules].flat()"></v-text-field>
+            variant="underlined" :rules="[rules, numeroRules].flat()"></v-text-field>
         </div>
       </v-expand-transition>
 
       <div class="text-subtitle-1 text-medium-emphasis">
         Tamaño de la muestra
       </div>
-      <v-text-field type="number" min="0" v-model="muestra" density="compact" placeholder="Tamaño de la muestra"
-        prepend-inner-icon="mdi-abacus" variant="underlined" :rules="[Rules, numeroRules].flat()"></v-text-field>
+      <v-text-field type="number" min="0" step="1" v-model="muestra" density="compact" placeholder="Tamaño de la muestra"
+        prepend-inner-icon="mdi-abacus" variant="underlined" :rules="[rules, numeroRules].flat()"></v-text-field>
 
       <v-btn block class="mb-2" style="color: azure; variant: outline; background-color: #765d39" color="#765D39"
         size="large" @click="calcular">
@@ -71,11 +73,10 @@ import { mediaService } from '../services/mediaService';
 import { utilsService } from '../services/utilsService';
 import { alertService } from '../services/alertService';
 
-const Rules = [(v) => !!v || "El campo es obligatorio"];
-const numeroRules = [
-  (v) => utilsService.isNumber(v) || "Solo se permiten números",
-];
+const rules = [(v) => !!v || "El campo es obligatorio"];
+const numeroRules = [(v) => utilsService.isNumber(v) || "Solo se permiten números"];
 
+const loading = ref(false);
 const condicion = ref(null);
 const condiciones = [
   { title: "Seleccionar...", value: null },
@@ -98,6 +99,7 @@ const varianzaConocida = computed(() => {
 const desviacionMuestral = ref(null);
 const desviacionPoblacional = ref(null);
 const muestra = ref(null);
+
 const camposCompletos = computed(() => {
   return (
     condicion.value &&
@@ -109,48 +111,71 @@ const camposCompletos = computed(() => {
 });
 
 const calcular = async () => {
+  loading.value = true;
   if (camposCompletos.value) {
-    let interval = null;
-    switch (condicion.value) {
-      case 1:
-        interval = await mediaService.poblacionNormalVarianzaConocida(
-          parseFloat(media.value),
-          parseFloat((1 - confianza.value).toFixed(2)),
-          parseFloat(desviacionPoblacional.value),
-          parseFloat(muestra.value)
-        );
-        break;
-      case 2:
-        interval = await mediaService.poblacionNormalVarianzaDesconocida(
-          parseFloat(media.value),
-          parseFloat((1 - confianza.value).toFixed(2)),
-          parseFloat(desviacionMuestral.value),
-          parseFloat(muestra.value)
-        );
-        break;
-      case 3:
-        interval = await mediaService.poblacionCualquieraVarianzaDesconocida(
-          parseFloat(media.value),
-          parseFloat((1 - confianza.value).toFixed(2)),
-          parseFloat(desviacionMuestral.value),
-          parseFloat(muestra.value)
-        );
-        break;
-      case 4:
-        interval = await mediaService.poblacionCualquieraVarianzaConocida(
-          parseFloat(media.value),
-          parseFloat((1 - confianza.value).toFixed(2)),
-          parseFloat(desviacionPoblacional.value),
-          parseFloat(muestra.value)
-        );
-        break;
-    }
-
-    if (interval) {
-      alertService.informative(
-        "Resultado",
-        `Con una confianza del ${confianza.value * 100}%, se espera que la media poblacional esté entre: <br/><br/><b>${interval.L}</b> <br/><br/>y <br/><br/><b>${interval.U}</b>`
+    if (!utilsService.isNumber(media.value) || !utilsService.greaterThanOrEqualTo0(media.value)) {
+      alertService.warning(
+        "Advertencia",
+        "La media muestral debe ser un número mayor o igual a 0."
       );
+    } else if (varianzaConocida.value && (!utilsService.isNumber(desviacionPoblacional.value) || !utilsService.greaterThanOrEqualTo0(desviacionPoblacional.value))) {
+      alertService.warning(
+        "Advertencia",
+        "La desviación poblacional debe ser un número mayor o igual a 0."
+      );
+    } else if (!varianzaConocida.value && (!utilsService.isNumber(desviacionMuestral.value) || !utilsService.greaterThanOrEqualTo0(desviacionMuestral.value))) {
+      alertService.warning(
+        "Advertencia",
+        "La desviación muestral debe ser un número mayor o igual a 0."
+      );
+    } else if (!utilsService.isInteger(muestra.value) || !utilsService.greaterThan0(muestra.value)) {
+      alertService.warning(
+        "Advertencia",
+        "El tamaño de la muestra debe ser un número entero mayor a 0."
+      );
+    } else {
+      let interval = null;
+      switch (condicion.value) {
+        case 1:
+          interval = await mediaService.poblacionNormalVarianzaConocida(
+            parseFloat(media.value),
+            parseFloat((1 - confianza.value).toFixed(2)),
+            parseFloat(desviacionPoblacional.value),
+            parseInt(muestra.value)
+          );
+          break;
+        case 2:
+          interval = await mediaService.poblacionNormalVarianzaDesconocida(
+            parseFloat(media.value),
+            parseFloat((1 - confianza.value).toFixed(2)),
+            parseFloat(desviacionMuestral.value),
+            parseInt(muestra.value)
+          );
+          break;
+        case 3:
+          interval = await mediaService.poblacionCualquieraVarianzaDesconocida(
+            parseFloat(media.value),
+            parseFloat((1 - confianza.value).toFixed(2)),
+            parseFloat(desviacionMuestral.value),
+            parseInt(muestra.value)
+          );
+          break;
+        case 4:
+          interval = await mediaService.poblacionCualquieraVarianzaConocida(
+            parseFloat(media.value),
+            parseFloat((1 - confianza.value).toFixed(2)),
+            parseFloat(desviacionPoblacional.value),
+            parseInt(muestra.value)
+          );
+          break;
+      }
+
+      if (interval) {
+        alertService.informative(
+          "Resultado",
+          `Con una confianza del ${confianza.value * 100}%, se espera que la media poblacional esté entre: <br/><br/><b>${interval.L}</b> <br/><br/>y <br/><br/><b>${interval.U}</b>`
+        );
+      }
     }
   } else {
     alertService.warning(
@@ -158,6 +183,7 @@ const calcular = async () => {
       "Por favor, ingrese todos los datos solicitados para realizar el cálculo del intervalo."
     );
   }
+  loading.value = false;
 }
 
 const limpiar = () => {
